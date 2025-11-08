@@ -78,24 +78,31 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update layout when nodes change
+  // Update layout when graph structure changes
   useEffect(() => {
     if (graphState.rootNodeId && graphState.nodes.size > 0) {
-      const positions = calculateTreeLayout(graphState.nodes, graphState.rootNodeId);
-      centerTree(positions);
+      // Check if we need to recalculate positions
+      const needsLayout = Array.from(graphState.nodes.values()).some(
+        node => node.position.x === 0 && node.position.y === 0
+      );
       
-      const updatedNodes = new Map(graphState.nodes);
-      positions.forEach((position, nodeId) => {
-        const node = updatedNodes.get(nodeId);
-        if (node) {
-          updatedNodes.set(nodeId, { ...node, position });
-        }
-      });
-      
-      setGraphState((prev) => ({
-        ...prev,
-        nodes: updatedNodes,
-      }));
+      if (needsLayout) {
+        const positions = calculateTreeLayout(graphState.nodes, graphState.rootNodeId);
+        centerTree(positions);
+        
+        const updatedNodes = new Map(graphState.nodes);
+        positions.forEach((position, nodeId) => {
+          const node = updatedNodes.get(nodeId);
+          if (node) {
+            updatedNodes.set(nodeId, { ...node, position });
+          }
+        });
+        
+        setGraphState((prev) => ({
+          ...prev,
+          nodes: updatedNodes,
+        }));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphState.nodes.size, graphState.rootNodeId]);
@@ -183,8 +190,10 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
 
     let assistantMessage = '';
 
+    // Send full conversation history to API
+    const conversationHistory = [...activeNode.messages, userMessage];
     await streamChatCompletion(
-      [{ role: 'user', content: userInput }],
+      conversationHistory,
       (chunk) => {
         const content = chunk.choices[0]?.delta?.content || '';
         assistantMessage += content;
@@ -430,7 +439,7 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
           >
             {/* Messages */}
             {activeNode && activeNode.messages.length > 0 ? (
-              <div className="w-full max-w-[700px] flex-1 mb-8 space-y-6 overflow-y-auto pt-20 custom-scrollbar">
+              <div className="w-full max-w-[700px] flex-1 mb-8 space-y-6 overflow-y-auto pt-20 pb-4 custom-scrollbar max-h-[calc(100vh-300px)]">
                 {activeNode.messages.map((message, index) => (
                   <div
                     key={index}

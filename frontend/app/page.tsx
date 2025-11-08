@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ChatInterface from './components/ChatInterface';
+import LlamaCppInterface from './components/llama';
 
 export default function Home() {
   const [modelName, setModelName] = useState<string>('Llama-3.2-3B-Instruct-Q4_K_M.gguf');

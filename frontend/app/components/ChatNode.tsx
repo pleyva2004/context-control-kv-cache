@@ -29,18 +29,40 @@ export default function ChatNode({ node, isActive, onClick, scale = 1 }: ChatNod
         width: nodeWidth,
         height: nodeHeight,
         transform: `translate(-50%, -50%) scale(${scale})`,
+        pointerEvents: 'auto',
       }}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       whileHover={{ scale: scale * 1.05 }}
       transition={{ duration: 0.2 }}
     >
+      {/* Connection dots */}
+      {node.parentId && (
+        <div 
+          className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full border-2 bg-[#1c1c1c]"
+          style={{
+            borderColor: isActive ? '#3b82f6' : '#5f5f5f',
+          }}
+        />
+      )}
+      {node.children.length > 0 && (
+        <div 
+          className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-3 h-3 rounded-full border-2 bg-[#1c1c1c]"
+          style={{
+            borderColor: isActive ? '#3b82f6' : '#5f5f5f',
+          }}
+        />
+      )}
+      
       <div
-        className={`w-full h-full rounded-xl px-4 py-3 border-2 transition-all duration-300 ${
+        className={`w-full h-full rounded-lg px-4 py-3 border-2 transition-all duration-300 shadow-md ${
           isActive
-            ? 'bg-blue-600/20 border-blue-500 shadow-lg shadow-blue-500/50'
+            ? 'bg-blue-600/30 border-blue-400 shadow-lg shadow-blue-500/50'
             : node.isFrozen
-            ? 'bg-[#2f2f2f]/60 border-[#3f3f3f] opacity-60'
-            : 'bg-[#2f2f2f] border-[#3f3f3f] hover:border-[#4f4f4f]'
+            ? 'bg-[#3a3a3a]/80 border-[#505050] opacity-70'
+            : 'bg-[#3a3a3a] border-[#5f5f5f] hover:border-[#7f7f7f] hover:shadow-lg'
         }`}
       >
         {/* Node header */}

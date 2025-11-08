@@ -13,10 +13,11 @@ interface GraphViewProps {
 
 export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [pan, setPan] = useState({ x: 400, y: 400 });
   const [zoom, setZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hasDragged, setHasDragged] = useState(false);
 
   // Center the view on mount or when active node changes
   useEffect(() => {
@@ -24,14 +25,32 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
       const node = nodes.get(activeNodeId)!;
       const container = containerRef.current;
       
-      // Center the active node
+      // Center the active node with some padding for root nodes
+      const offsetX = node.position.x === 0 ? 100 : 0;
       setPan({
-        x: container.clientWidth / 2 - node.position.x * zoom,
+        x: container.clientWidth / 2 - node.position.x * zoom + offsetX,
         y: container.clientHeight / 2 - node.position.y * zoom,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNodeId, zoom]);
+  }, [activeNodeId, zoom, nodes.size]);
+
+  // Initial center on first render with nodes
+  useEffect(() => {
+    if (nodes.size > 0 && containerRef.current) {
+      const container = containerRef.current;
+      const firstNode = Array.from(nodes.values())[0];
+      
+      // Only auto-center if we haven't manually panned yet (pan is at initial value)
+      if (pan.x === 400 && pan.y === 400) {
+        setPan({
+          x: container.clientWidth / 3,
+          y: container.clientHeight / 2,
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes.size]);
 
   // Handle mouse wheel for zooming
   const handleWheel = (e: React.WheelEvent) => {
@@ -43,8 +62,10 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
 
   // Handle mouse down for panning
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
+    // Only start dragging if clicking on the background (not on a node)
+    if (e.button === 0 && (e.target as HTMLElement).closest('.graph-node') === null) {
       setIsDragging(true);
+      setHasDragged(false);
       setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     }
   };
@@ -52,6 +73,14 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
   // Handle mouse move for panning
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isDragging) {
+      const deltaX = Math.abs(e.clientX - dragStart.x - pan.x);
+      const deltaY = Math.abs(e.clientY - dragStart.y - pan.y);
+      
+      // Mark as dragged if moved more than 5 pixels
+      if (deltaX > 5 || deltaY > 5) {
+        setHasDragged(true);
+      }
+      
       setPan({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
@@ -62,16 +91,15 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
   // Handle mouse up
   const handleMouseUp = () => {
     setIsDragging(false);
+    setTimeout(() => setHasDragged(false), 100);
   };
 
-  // Generate SVG paths for connections
+  // Generate SVG paths for connections - tree-style with right angles
   const generatePath = (from: NodePosition, to: NodePosition): string => {
-    // Horizontal bezier curve
-    const controlPointOffset = Math.abs(to.x - from.x) / 2;
+    // Create a stepped path: horizontal then vertical then horizontal
+    const midX = from.x + (to.x - from.x) / 2;
     
-    return `M ${from.x} ${from.y} C ${from.x + controlPointOffset} ${from.y}, ${
-      to.x - controlPointOffset
-    } ${to.y}, ${to.x} ${to.y}`;
+    return `M ${from.x} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${to.x} ${to.y}`;
   };
 
   // Calculate view box dimensions
@@ -140,17 +168,26 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
               node.id === activeNodeId || childId === activeNodeId;
 
             return (
-              <motion.path
-                key={`${node.id}-${childId}`}
-                d={generatePath(node.position, childNode.position)}
-                stroke={isActiveConnection ? '#3b82f6' : '#4f4f4f'}
-                strokeWidth={isActiveConnection ? 3 : 2}
-                fill="none"
-                markerEnd="url(#arrowhead)"
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 0.5, ease: 'easeInOut' }}
-              />
+              <g key={`${node.id}-${childId}`}>
+                <motion.path
+                  d={generatePath(node.position, childNode.position)}
+                  stroke={isActiveConnection ? '#3b82f6' : '#5f5f5f'}
+                  strokeWidth={isActiveConnection ? 3 : 2}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 0.5, ease: 'easeInOut' }}
+                />
+                {/* Add a circle at connection point */}
+                <circle
+                  cx={childNode.position.x - 110}
+                  cy={childNode.position.y}
+                  r="4"
+                  fill={isActiveConnection ? '#3b82f6' : '#5f5f5f'}
+                />
+              </g>
             );
           })
         )}
@@ -158,7 +195,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
 
       {/* Nodes */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
@@ -168,6 +205,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
           {Array.from(nodes.values()).map((node) => (
             <motion.div
               key={node.id}
+              className="graph-node"
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5 }}
@@ -176,7 +214,11 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
               <ChatNode
                 node={node}
                 isActive={node.id === activeNodeId}
-                onClick={() => onNodeClick(node.id)}
+                onClick={() => {
+                  if (!hasDragged) {
+                    onNodeClick(node.id);
+                  }
+                }}
                 scale={1}
               />
             </motion.div>
@@ -185,7 +227,10 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
       </div>
 
       {/* Mini-map */}
-      <div className="absolute bottom-6 right-6 bg-[#2f2f2f]/90 border border-[#3f3f3f] rounded-lg p-3 backdrop-blur-sm">
+      <div 
+        className="absolute bottom-6 right-6 bg-[#2f2f2f]/90 border border-[#3f3f3f] rounded-lg p-3 backdrop-blur-sm pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="text-xs text-gray-400 mb-2">Graph Overview</div>
         <svg width="150" height="100" className="border border-[#4f4f4f] rounded">
           <g transform={`translate(75, 50)`}>
@@ -195,15 +240,21 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
                 const childNode = nodes.get(childId);
                 if (!childNode) return null;
 
+                const fromX = node.position.x / 30;
+                const fromY = node.position.y / 30;
+                const toX = childNode.position.x / 30;
+                const toY = childNode.position.y / 30;
+                const midX = fromX + (toX - fromX) / 2;
+
                 return (
-                  <line
+                  <path
                     key={`mini-${node.id}-${childId}`}
-                    x1={node.position.x / 30}
-                    y1={node.position.y / 30}
-                    x2={childNode.position.x / 30}
-                    y2={childNode.position.y / 30}
-                    stroke="#4f4f4f"
-                    strokeWidth="1"
+                    d={`M ${fromX} ${fromY} L ${midX} ${fromY} L ${midX} ${toY} L ${toX} ${toY}`}
+                    stroke="#5f5f5f"
+                    strokeWidth="1.5"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
                 );
               })
@@ -224,7 +275,10 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
       </div>
 
       {/* Controls */}
-      <div className="absolute top-6 left-6 flex flex-col gap-2">
+      <div 
+        className="absolute top-6 left-6 flex flex-col gap-2 pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <button
           onClick={() => setZoom(Math.min(zoom + 0.1, 2))}
           className="bg-[#2f2f2f] hover:bg-[#3f3f3f] border border-[#4f4f4f] text-white p-2 rounded-lg transition-colors"
@@ -263,7 +317,10 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
       </div>
 
       {/* Zoom indicator */}
-      <div className="absolute bottom-6 left-6 bg-[#2f2f2f]/90 border border-[#3f3f3f] rounded-lg px-3 py-2 backdrop-blur-sm">
+      <div 
+        className="absolute bottom-6 left-6 bg-[#2f2f2f]/90 border border-[#3f3f3f] rounded-lg px-3 py-2 backdrop-blur-sm pointer-events-auto"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <span className="text-xs text-gray-400">Zoom: {Math.round(zoom * 100)}%</span>
       </div>
     </div>
