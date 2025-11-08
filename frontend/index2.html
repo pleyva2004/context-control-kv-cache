@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LLama.cpp Stream Demo</title>
+    <style>
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .output {
+            white-space: pre-wrap;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 3px;
+            min-height: 50px;
+        }
+        .error {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px 10px 0;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .slot-id-container {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: none;
+            border-left: 4px solid;
+            animation: slideIn 0.3s ease-out;
+        }
+        .slot-id-container.initial {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-left-color: #4c51bf;
+            color: white;
+        }
+        .slot-id-container.followup {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-left-color: #e53e3e;
+            color: white;
+        }
+        .slot-id-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        .slot-id-value {
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        .slot-id-description {
+            font-size: 12px;
+            margin-top: 5px;
+            opacity: 0.85;
+        }
+        .status-indicator {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status-idle {
+            background-color: #e0e0e0;
+            color: #666;
+        }
+        .status-processing {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-done {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat with Local LLM</h1>
+    
+    <div class="section">
+        <h2>Initial Chat <span id="initial_status" class="status-indicator status-idle">IDLE</span></h2>
+        <input type="text" id="prompt" placeholder="Enter your message">
+        <button id="send_btn" onclick="sendMessage()">Send</button>
+        <div id="slot_id_display" class="slot-id-container initial">
+            <div class="slot-id-label">🎯 KV Cache Slot ID</div>
+            <div class="slot-id-value" id="slot_id_value">-</div>
+            <div class="slot-id-description">This slot contains the cached conversation context</div>
+        </div>
+        <div id="output" class="output"></div>
+    </div>
+
+    <div class="section">
+        <h2>Follow-up Question (Branch) <span id="branch_status" class="status-indicator status-idle">IDLE</span></h2>
+        <label>Parent Slot ID:</label>
+        <input type="number" id="parent_slot_id" placeholder="Parent Slot ID" value="3">
+        
+        <label>Branch Mode:</label>
+        <select id="branch_mode" style="width: 100%; padding: 8px; margin: 5px 0;">
+            <option value="reuse_kv">Reuse KV (copies parent's KV cache)</option>
+            <option value="fresh">Fresh Context (no KV cache reuse)</option>
+        </select>
+        
+        <label>Text Excerpt (from previous response):</label>
+        <textarea id="text_excerpt" rows="4" placeholder="Paste relevant text excerpt from previous response">1. **Copenhagen Interpretation**
+- **Key Features:** Introduced by Niels Bohr and Werner Heisenberg, it posits that at the quantum level, the act of observation itself is what causes the apparent collapse of the quantum state of a system from a superposition of states to a definite state. This process is often attributed to the observer but can be seen as non-local, where the observer's act of measurement influences the outcome of the observation.</textarea>
+        
+        <label>Context Window:</label>
+        <input type="number" id="context_window" placeholder="Context Window" value="20">
+        
+        <label>Follow-up Question:</label>
+        <input type="text" id="followup_prompt" placeholder="Enter your follow-up question" value="What are the main critiques of this interpretation ?">
+        
+        <button id="branch_btn" onclick="sendFollowUp()">Send Follow-up</button>
+        <div id="followup_slot_id_display" class="slot-id-container followup">
+            <div class="slot-id-label">🔀 Branched KV Cache Slot ID</div>
+            <div class="slot-id-value" id="followup_slot_id_value">-</div>
+            <div class="slot-id-description">This branched slot reuses/copies context from the parent slot</div>
+        </div>
+        <div id="followup_output" class="output"></div>
+    </div>
+
+    <script>
+        let initialChatDone = false;
+        
+        function setStatus(elementId, status) {
+            const el = document.getElementById(elementId);
+            el.className = 'status-indicator status-' + status;
+            el.textContent = status.toUpperCase();
+        }
+
+        async function sendMessage() {
+            const prompt = document.getElementById('prompt').value;
+            const output = document.getElementById('output');
+            const slotIdDisplay = document.getElementById('slot_id_display');
+            const slotIdValue = document.getElementById('slot_id_value');
+            const sendBtn = document.getElementById('send_btn');
+            
+            output.textContent = '';
+            output.classList.remove('error');
+            slotIdDisplay.style.display = 'none';
+            initialChatDone = false;
+            sendBtn.disabled = true;
+            setStatus('initial_status', 'processing');
+
+            try {
+                const response = await fetch('http://localhost:8080/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: [{ role: 'user', content: prompt }],
+                        stream: true
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+
+                            try {
+                                const chunk = JSON.parse(data);
+                                
+                                // Check for errors
+                                if (chunk.error) {
+                                    output.classList.add('error');
+                                    output.textContent = 'ERROR: ' + (chunk.error.message || JSON.stringify(chunk.error));
+                                    setStatus('initial_status', 'idle');
+                                    return;
+                                }
+                                
+                                const content = chunk.choices[0]?.delta?.content || '';
+                                output.textContent += content;
+                                
+                                // Capture slot_id if present
+                                if (chunk.slot_id !== undefined) {
+                                    slotIdValue.textContent = chunk.slot_id;
+                                    slotIdDisplay.style.display = 'block';
+                                    document.getElementById('parent_slot_id').value = chunk.slot_id;
+                                    console.log('Slot ID received:', chunk.slot_id);
+                                }
+                            } catch (e) {
+                                console.error('Error parsing chunk:', e, data);
+                            }
+                        }
+                    }
+                }
+                
+                initialChatDone = true;
+                setStatus('initial_status', 'done');
+            } catch (error) {
+                output.classList.add('error');
+                output.textContent = 'ERROR: ' + error.message;
+                console.error('Error:', error);
+                setStatus('initial_status', 'idle');
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function sendFollowUp() {
+            const parentSlotId = parseInt(document.getElementById('parent_slot_id').value);
+            const branchMode = document.getElementById('branch_mode').value;
+            const textExcerpt = document.getElementById('text_excerpt').value;
+            const contextWindow = parseInt(document.getElementById('context_window').value);
+            const prompt = document.getElementById('followup_prompt').value;
+            const output = document.getElementById('followup_output');
+            const followupSlotIdDisplay = document.getElementById('followup_slot_id_display');
+            const followupSlotIdValue = document.getElementById('followup_slot_id_value');
+            const branchBtn = document.getElementById('branch_btn');
+            
+            // Check if initial chat is done
+            if (!initialChatDone) {
+                output.classList.add('error');
+                output.textContent = 'ERROR: Please wait for the initial chat to complete before branching.';
+                return;
+            }
+
+            output.textContent = 'Sending follow-up question...\n\n';
+            output.classList.remove('error');
+            followupSlotIdDisplay.style.display = 'none';
+            branchBtn.disabled = true;
+            setStatus('branch_status', 'processing');
+
+            try {
+                const response = await fetch('http://localhost:8080/v1/chat/branch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        parent_slot_id: parentSlotId,
+                        branch_mode: branchMode,
+                        text_excerpt: textExcerpt,
+                        context_window: contextWindow,
+                        prompt: prompt,
+                        stream: true
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                output.textContent = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+
+                            try {
+                                const chunk = JSON.parse(data);
+                                
+                                // Check for errors
+                                if (chunk.error) {
+                                    output.classList.add('error');
+                                    output.textContent = 'ERROR: ' + (chunk.error.message || JSON.stringify(chunk.error));
+                                    setStatus('branch_status', 'idle');
+                                    return;
+                                }
+                                
+                                const content = chunk.choices[0]?.delta?.content || '';
+                                output.textContent += content;
+                                
+                                // Capture slot_id if present
+                                if (chunk.slot_id !== undefined) {
+                                    followupSlotIdValue.textContent = chunk.slot_id;
+                                    followupSlotIdDisplay.style.display = 'block';
+                                    console.log('Follow-up Slot ID received:', chunk.slot_id);
+                                }
+                            } catch (e) {
+                                console.error('Error parsing chunk:', e, data);
+                            }
+                        }
+                    }
+                }
+                
+                setStatus('branch_status', 'done');
+            } catch (error) {
+                output.classList.add('error');
+                output.textContent = 'ERROR: ' + error.message;
+                console.error('Follow-up error:', error);
+                setStatus('branch_status', 'idle');
+            } finally {
+                branchBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
+

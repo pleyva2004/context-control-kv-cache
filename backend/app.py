@@ -8,9 +8,6 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from llama_cpp import Llama
 
-# =====================================================
-# === Llama model initialization ===
-# =====================================================
 
 LLM = Llama(
     model_path="../models/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
@@ -18,10 +15,6 @@ LLM = Llama(
     n_gpu_layers=32,
     verbose=False
 )
-
-# =====================================================
-# === FastAPI setup ===
-# =====================================================
 
 app = FastAPI()
 app.add_middleware(
@@ -32,11 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# =====================================================
-# === Dataclasses ===
-# =====================================================
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Message:
     text: str
     tokens: Tuple[int, ...]
@@ -46,9 +36,7 @@ class Message:
 
 MESSAGE_STORE: Dict[str, Dict[str, Any]] = {}
 
-# =====================================================
-# === Request Models ===
-# =====================================================
+
 
 class ChatRequest(BaseModel):
     system: str = (
@@ -66,16 +54,12 @@ class FocusRequest(BaseModel):
     followup: str
     system: str = "You are a helpful, concise assistant focused on the provided excerpt."
 
-# =====================================================
-# === Helper: Streaming Event ===
-# =====================================================
+
 
 def _sse(data: Dict[str, Any]):
     return json.dumps(data) + "\n"
 
-# =====================================================
-# === Endpoint: /generate (root or new message) ===
-# =====================================================
+
 
 @app.post("/generate")
 async def generate(req: ChatRequest):
@@ -144,9 +128,6 @@ async def generate(req: ChatRequest):
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 
-# =====================================================
-# === Endpoint: /focus (branching context) ===
-# =====================================================
 
 @app.post("/focus")
 async def focus(req: FocusRequest):
