@@ -4,7 +4,7 @@ import json
 
 LLM = Llama(
     model_path="./models/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    n_ctx=8192,
+    n_ctx=4096*2,
     n_gpu_layers=32,
     verbose=False
 )

@@ -5,19 +5,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ChatNode from './ChatNode';
 import { ChatNode as ChatNodeType, NodePosition } from '../types/graph';
 
+interface BranchAnimationState {
+  isAnimating: boolean;
+  stage: 'idle' | 'switching_to_graph' | 'drawing_branch' | 'flowing_context' | 'expanding_node' | 'returning_to_focus';
+  newNodeId: string | null;
+  parentNodeId: string | null;
+}
+
 interface GraphViewProps {
   nodes: Map<string, ChatNodeType>;
   activeNodeId: string | null;
   onNodeClick: (nodeId: string) => void;
+  branchAnimation: BranchAnimationState;
 }
 
-export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphViewProps) {
+export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnimation }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 400, y: 400 });
   const [zoom, setZoom] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [hasDragged, setHasDragged] = useState(false);
 
   // Center the view on mount or when active node changes
   useEffect(() => {
@@ -60,46 +65,24 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
     setZoom(newZoom);
   };
 
-  // Handle mouse down for panning
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Only start dragging if clicking on the background (not on a node)
-    if (e.button === 0 && (e.target as HTMLElement).closest('.graph-node') === null) {
-      setIsDragging(true);
-      setHasDragged(false);
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
-  };
-
-  // Handle mouse move for panning
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      const deltaX = Math.abs(e.clientX - dragStart.x - pan.x);
-      const deltaY = Math.abs(e.clientY - dragStart.y - pan.y);
-      
-      // Mark as dragged if moved more than 5 pixels
-      if (deltaX > 5 || deltaY > 5) {
-        setHasDragged(true);
-      }
-      
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
-    }
-  };
-
-  // Handle mouse up
-  const handleMouseUp = () => {
-    setIsDragging(false);
-    setTimeout(() => setHasDragged(false), 100);
-  };
-
   // Generate SVG paths for connections - tree-style with right angles
   const generatePath = (from: NodePosition, to: NodePosition): string => {
-    // Create a stepped path: horizontal then vertical then horizontal
-    const midX = from.x + (to.x - from.x) / 2;
+    // Node dimensions from ChatNode.tsx
+    const nodeWidth = 220;
+    const connectionGap = 15; // Gap between line and node edge
+    const horizontalExtension = 80; // How far the line extends horizontally from parent
     
-    return `M ${from.x} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${to.x} ${to.y}`;
+    // Calculate start and end points with proper spacing
+    const startX = from.x + (nodeWidth / 2) + connectionGap; // Right edge of parent + gap
+    const endX = to.x - (nodeWidth / 2) - connectionGap;     // Left edge of child - gap
+    const startY = from.y;
+    const endY = to.y;
+    
+    // Create a balanced stepped path: horizontal from parent, vertical drop, horizontal to child
+    const firstCornerX = startX + horizontalExtension;
+    const secondCornerX = endX - horizontalExtension;
+    
+    return `M ${startX} ${startY} L ${firstCornerX} ${startY} L ${firstCornerX} ${endY} L ${endX} ${endY}`;
   };
 
   // Calculate view box dimensions
@@ -131,11 +114,6 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
       ref={containerRef}
       className="relative w-full h-full overflow-auto bg-[#1c1c1c] custom-scrollbar"
       onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
     >
       {/* SVG for connections */}
       <svg
@@ -160,37 +138,131 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
         
         {/* Draw connections */}
         {Array.from(nodes.values()).map((node) =>
-          node.children.map((childId) => {
+          node.children.map((childId, childIndex) => {
             const childNode = nodes.get(childId);
             if (!childNode) return null;
 
             const isActiveConnection =
               node.id === activeNodeId || childId === activeNodeId;
 
+            // Check if this is the animating branch
+            const isAnimatingBranch = 
+              branchAnimation.isAnimating &&
+              node.id === branchAnimation.parentNodeId &&
+              childId === branchAnimation.newNodeId;
+
+            // Calculate midpoint for label
+            const midX = node.position.x + (childNode.position.x - node.position.x) / 2;
+            const midY = node.position.y + (childNode.position.y - node.position.y) / 2;
+
+            // Determine animation state for this connection
+            const shouldAnimate = isAnimatingBranch && 
+              (branchAnimation.stage === 'drawing_branch' || branchAnimation.stage === 'flowing_context' || branchAnimation.stage === 'expanding_node');
+            
+            const pathLength = shouldAnimate && branchAnimation.stage === 'drawing_branch' ? 0 : 1;
+            const animatePathLength = shouldAnimate ? 1 : pathLength;
+
             return (
               <g key={`${node.id}-${childId}`}>
                 <motion.path
                   d={generatePath(node.position, childNode.position)}
-                  stroke={isActiveConnection ? '#3b82f6' : '#5f5f5f'}
-                  strokeWidth={isActiveConnection ? 3 : 2}
+                  stroke={isActiveConnection || isAnimatingBranch ? '#3b82f6' : '#5f5f5f'}
+                  strokeWidth={isActiveConnection || isAnimatingBranch ? 3 : 2}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ duration: 0.5, ease: 'easeInOut' }}
+                  initial={{ pathLength: isAnimatingBranch ? 0 : 0, opacity: isAnimatingBranch ? 1 : 0 }}
+                  animate={{ 
+                    pathLength: animatePathLength, 
+                    opacity: 1 
+                  }}
+                  transition={{ 
+                    pathLength: { duration: isAnimatingBranch && branchAnimation.stage === 'drawing_branch' ? 0.5 : 0.5, ease: 'easeInOut' },
+                    opacity: { duration: 0.3 }
+                  }}
                 />
                 {/* Add a circle at connection point */}
                 <circle
-                  cx={childNode.position.x - 110}
+                  cx={childNode.position.x - 110 - 15}
                   cy={childNode.position.y}
                   r="4"
-                  fill={isActiveConnection ? '#3b82f6' : '#5f5f5f'}
+                  fill={isActiveConnection || isAnimatingBranch ? '#3b82f6' : '#5f5f5f'}
                 />
+                {/* Branch label */}
+                <text
+                  x={midX}
+                  y={midY - 10}
+                  fill={isActiveConnection || isAnimatingBranch ? '#60a5fa' : '#8b8b8b'}
+                  fontSize="11"
+                  fontWeight="500"
+                  textAnchor="middle"
+                  className="select-none"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  Branch {childIndex + 1}
+                </text>
+
+                {/* Flowing context particles animation */}
+                {isAnimatingBranch && branchAnimation.stage === 'flowing_context' && (
+                  <>
+                    {[0, 0.25, 0.5, 0.75, 1.0].map((delay, idx) => {
+                      // Use same spacing calculations as generatePath
+                      const nodeWidth = 220;
+                      const connectionGap = 15;
+                      const horizontalExtension = 80;
+                      
+                      const startX = node.position.x + (nodeWidth / 2) + connectionGap;
+                      const endX = childNode.position.x - (nodeWidth / 2) - connectionGap;
+                      const startY = node.position.y;
+                      const endY = childNode.position.y;
+                      const firstCornerX = startX + horizontalExtension;
+
+                      return (
+                        <motion.circle
+                          key={`particle-${idx}`}
+                          r="6"
+                          fill="url(#particleGradient)"
+                          filter="url(#glow)"
+                          initial={{
+                            cx: startX,
+                            cy: startY,
+                            opacity: 0,
+                          }}
+                          animate={{
+                            cx: [startX, firstCornerX, firstCornerX, endX],
+                            cy: [startY, startY, endY, endY],
+                            opacity: [0, 1, 1, 0],
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            delay: delay,
+                            ease: 'easeInOut',
+                          }}
+                        />
+                      );
+                    })}
+                  </>
+                )}
               </g>
             );
           })
         )}
+
+        {/* Gradient and filter definitions for particles */}
+        <defs>
+          <radialGradient id="particleGradient">
+            <stop offset="0%" stopColor="#60a5fa" stopOpacity="1" />
+            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.3" />
+          </radialGradient>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
       </svg>
 
       {/* Nodes */}
@@ -202,27 +274,45 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick }: GraphVie
         }}
       >
         <AnimatePresence>
-          {Array.from(nodes.values()).map((node) => (
-            <motion.div
-              key={node.id}
-              className="graph-node"
-              initial={{ opacity: 0, scale: 0.5 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.5 }}
-              transition={{ duration: 0.3 }}
-            >
-              <ChatNode
-                node={node}
-                isActive={node.id === activeNodeId}
-                onClick={() => {
-                  if (!hasDragged) {
-                    onNodeClick(node.id);
-                  }
+          {Array.from(nodes.values()).map((node) => {
+            const isNewAnimatingNode = 
+              branchAnimation.isAnimating &&
+              node.id === branchAnimation.newNodeId;
+
+            const shouldExpand = isNewAnimatingNode && branchAnimation.stage === 'expanding_node';
+
+            return (
+              <motion.div
+                key={node.id}
+                className="graph-node"
+                initial={{ 
+                  opacity: isNewAnimatingNode ? 0 : 0, 
+                  scale: isNewAnimatingNode ? 0 : 0.5 
                 }}
-                scale={1}
-              />
-            </motion.div>
-          ))}
+                animate={{ 
+                  opacity: 1, 
+                  scale: shouldExpand ? [0, 1.15, 1] : 1,
+                  filter: shouldExpand ? [
+                    'drop-shadow(0 0 0px rgba(59, 130, 246, 0))',
+                    'drop-shadow(0 0 20px rgba(59, 130, 246, 0.8))',
+                    'drop-shadow(0 0 10px rgba(59, 130, 246, 0.4))',
+                  ] : 'drop-shadow(0 0 0px rgba(59, 130, 246, 0))',
+                }}
+                exit={{ opacity: 0, scale: 0.5 }}
+                transition={{ 
+                  duration: shouldExpand ? 0.4 : 0.3,
+                  ease: shouldExpand ? 'easeOut' : 'easeInOut',
+                }}
+              >
+                <ChatNode
+                  node={node}
+                  isActive={node.id === activeNodeId}
+                  onClick={() => onNodeClick(node.id)}
+                  scale={1}
+                />
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
 

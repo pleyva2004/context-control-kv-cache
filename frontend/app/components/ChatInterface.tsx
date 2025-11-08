@@ -26,6 +26,13 @@ interface SelectionPosition {
 type ViewMode = 'focused' | 'graph';
 type BranchState = 'idle' | 'selecting' | 'ready_to_branch';
 
+interface BranchAnimationState {
+  isAnimating: boolean;
+  stage: 'idle' | 'switching_to_graph' | 'drawing_branch' | 'flowing_context' | 'expanding_node' | 'returning_to_focus';
+  newNodeId: string | null;
+  parentNodeId: string | null;
+}
+
 export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
   // Graph state
   const [graphState, setGraphState] = useState<GraphState>({
@@ -43,7 +50,12 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
   const [branchState, setBranchState] = useState<BranchState>('idle');
   
   // Animation state
-  const [isBranchingAnimation, setIsBranchingAnimation] = useState(false);
+  const [branchAnimation, setBranchAnimation] = useState<BranchAnimationState>({
+    isAnimating: false,
+    stage: 'idle',
+    newNodeId: null,
+    parentNodeId: null,
+  });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -63,6 +75,59 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
     }
   }, [activeNode?.messages, viewMode]);
 
+  // Animation orchestration effect
+  useEffect(() => {
+    if (!branchAnimation.isAnimating) return;
+
+    let timeoutId: NodeJS.Timeout;
+
+    switch (branchAnimation.stage) {
+      case 'switching_to_graph':
+        // Switch to graph view (300ms fade)
+        setViewMode('graph');
+        timeoutId = setTimeout(() => {
+          setBranchAnimation(prev => ({ ...prev, stage: 'drawing_branch' }));
+        }, 300);
+        break;
+
+      case 'drawing_branch':
+        // Branch line drawing (500ms) + context flowing starts after 200ms
+        timeoutId = setTimeout(() => {
+          setBranchAnimation(prev => ({ ...prev, stage: 'flowing_context' }));
+        }, 500);
+        break;
+
+      case 'flowing_context':
+        // Context particles flow (1.5s duration + 1.0s max delay = 2.5s total)
+        timeoutId = setTimeout(() => {
+          setBranchAnimation(prev => ({ ...prev, stage: 'expanding_node' }));
+        }, 2000);
+        break;
+
+      case 'expanding_node':
+        // Node expansion (400ms) + brief pause (200ms)
+        timeoutId = setTimeout(() => {
+          setBranchAnimation(prev => ({ ...prev, stage: 'returning_to_focus' }));
+        }, 600);
+        break;
+
+      case 'returning_to_focus':
+        // Return to focused view
+        setViewMode('focused');
+        timeoutId = setTimeout(() => {
+          setBranchAnimation({
+            isAnimating: false,
+            stage: 'idle',
+            newNodeId: null,
+            parentNodeId: null,
+          });
+        }, 300);
+        break;
+    }
+
+    return () => clearTimeout(timeoutId);
+  }, [branchAnimation]);
+
   // Initialize root node if empty
   useEffect(() => {
     if (graphState.nodes.size === 0) {
@@ -81,23 +146,22 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
   // Update layout when graph structure changes
   useEffect(() => {
     if (graphState.rootNodeId && graphState.nodes.size > 0) {
-      // Check if we need to recalculate positions
-      const needsLayout = Array.from(graphState.nodes.values()).some(
-        node => node.position.x === 0 && node.position.y === 0
-      );
+      // Always recalculate layout when graph structure changes
+      const positions = calculateTreeLayout(graphState.nodes, graphState.rootNodeId);
+      centerTree(positions);
       
-      if (needsLayout) {
-        const positions = calculateTreeLayout(graphState.nodes, graphState.rootNodeId);
-        centerTree(positions);
-        
-        const updatedNodes = new Map(graphState.nodes);
-        positions.forEach((position, nodeId) => {
-          const node = updatedNodes.get(nodeId);
-          if (node) {
-            updatedNodes.set(nodeId, { ...node, position });
-          }
-        });
-        
+      const updatedNodes = new Map(graphState.nodes);
+      let hasChanges = false;
+      
+      positions.forEach((position, nodeId) => {
+        const node = updatedNodes.get(nodeId);
+        if (node && (node.position.x !== position.x || node.position.y !== position.y)) {
+          updatedNodes.set(nodeId, { ...node, position });
+          hasChanges = true;
+        }
+      });
+      
+      if (hasChanges) {
         setGraphState((prev) => ({
           ...prev,
           nodes: updatedNodes,
@@ -254,12 +318,6 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
       return;
     }
 
-    // Start branching animation
-    setIsBranchingAnimation(true);
-    
-    // Wait for minimize animation
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
     // Create new node
     const newNodeId = `node-${Date.now()}`;
     const newNode = createNode(newNodeId, activeNode.id, userInput);
@@ -280,14 +338,18 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
       activeNodeId: newNodeId,
     });
 
-    // Wait for branch line animation
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Start branching animation
+    setBranchAnimation({
+      isAnimating: true,
+      stage: 'switching_to_graph',
+      newNodeId,
+      parentNodeId: activeNode.id,
+    });
 
     // Reset UI state
     setInput('');
     setBranchState('idle');
     setSelectedText('');
-    setIsBranchingAnimation(false);
     setIsStreaming(true);
 
     // Add user message to new node
@@ -426,6 +488,7 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
               nodes={graphState.nodes}
               activeNodeId={graphState.activeNodeId}
               onNodeClick={handleNodeClick}
+              branchAnimation={branchAnimation}
             />
           </motion.div>
         ) : (
