@@ -17,6 +17,7 @@ export interface ChatNode {
   slotId: number | null;
   children: string[]; // IDs of child nodes
   isFrozen: boolean; // Whether this node is read-only (has been branched from)
+  isActivated: boolean; // Whether this node has been activated (clicked/used)
 }
 
 export interface GraphState {
@@ -87,7 +88,8 @@ export function createNode(
   parentId: string | null,
   userQuestion: string,
   messages: Message[] = [],
-  slotId: number | null = null
+  slotId: number | null = null,
+  isActivated: boolean = true
 ): ChatNode {
   return {
     id,
@@ -98,6 +100,7 @@ export function createNode(
     slotId,
     children: [],
     isFrozen: false,
+    isActivated,
   };
 }
 

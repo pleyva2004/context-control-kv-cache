@@ -14,7 +14,7 @@ export function useGraphState() {
   // Initialize root node if empty
   useEffect(() => {
     if (graphState.nodes.size === 0) {
-      const rootNode = createNode('root', null, 'Start conversation');
+      const rootNode = createNode('root', null, 'Start conversation', [], null, false);
       const newNodes = new Map([[rootNode.id, rootNode]]);
       
       setGraphState({

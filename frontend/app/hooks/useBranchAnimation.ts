@@ -12,7 +12,7 @@ interface BranchAnimationState {
 }
 
 export function useBranchAnimation() {
-  const [viewMode, setViewMode] = useState<ViewMode>('focused');
+  const [viewMode, setViewMode] = useState<ViewMode>('graph');
   const [branchAnimation, setBranchAnimation] = useState<BranchAnimationState>({
     isAnimating: false,
     stage: 'idle',

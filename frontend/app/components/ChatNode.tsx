@@ -57,12 +57,14 @@ export default function ChatNode({ node, isActive, onClick, scale = 1 }: ChatNod
       )}
       
       <div
-        className={`w-full h-full rounded-lg px-4 py-3 border-2 transition-all duration-300 shadow-md ${
-          isActive
-            ? 'bg-blue-600/30 border-blue-400 shadow-lg shadow-blue-500/50'
+        className={`w-full h-full rounded-lg px-4 py-3 transition-all duration-300 shadow-md ${
+          !node.isActivated
+            ? 'bg-[#2a2a2a]/60 border-2 border-dashed border-[#606060] opacity-60 hover:opacity-80 hover:border-[#808080]'
+            : isActive
+            ? 'bg-blue-600/30 border-2 border-blue-400 shadow-lg shadow-blue-500/50'
             : node.isFrozen
-            ? 'bg-[#3a3a3a]/80 border-[#505050] opacity-70'
-            : 'bg-[#3a3a3a] border-[#5f5f5f] hover:border-[#7f7f7f] hover:shadow-lg'
+            ? 'bg-[#3a3a3a]/80 border-2 border-[#505050] opacity-70'
+            : 'bg-[#3a3a3a] border-2 border-[#5f5f5f] hover:border-[#7f7f7f] hover:shadow-lg'
         }`}
       >
         {/* Node header */}
@@ -70,11 +72,11 @@ export default function ChatNode({ node, isActive, onClick, scale = 1 }: ChatNod
           <div className="flex items-center gap-2">
             <div
               className={`w-2 h-2 rounded-full ${
-                isActive ? 'bg-blue-500' : node.isFrozen ? 'bg-gray-600' : 'bg-green-500'
+                !node.isActivated ? 'bg-gray-500' : isActive ? 'bg-blue-500' : node.isFrozen ? 'bg-gray-600' : 'bg-green-500'
               }`}
             />
             <span className="text-xs text-gray-400">
-              {node.isFrozen ? 'Frozen' : isActive ? 'Active' : 'Branch'}
+              {!node.isActivated ? 'Inactive' : node.isFrozen ? 'Frozen' : isActive ? 'Active' : 'Branch'}
             </span>
           </div>
           {node.children.length > 0 && (
@@ -90,7 +92,7 @@ export default function ChatNode({ node, isActive, onClick, scale = 1 }: ChatNod
         </div>
 
         {/* Message count */}
-        {node.messages.length > 0 && (
+        {node.messages.length > 0 && node.isActivated && (
           <div className="mt-2 text-xs text-gray-500">
             {node.messages.length} {node.messages.length === 1 ? 'message' : 'messages'}
           </div>

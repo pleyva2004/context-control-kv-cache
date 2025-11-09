@@ -73,11 +73,12 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
   const handleRegularSubmit = async (userMessage: Message, userInput: string) => {
     if (!activeNode) return;
 
-    // Add user message to current node
+    // Add user message to current node and mark as activated
     const updatedNodes = new Map(graphState.nodes);
     const updatedNode = {
       ...activeNode,
       messages: [...activeNode.messages, userMessage],
+      isActivated: true, // Ensure node is activated when messages are added
     };
     updatedNodes.set(activeNode.id, updatedNode);
     
@@ -258,7 +259,17 @@ export default function ChatInterface({ modelName, ctx }: ChatInterfaceProps) {
 
   // Handle node click in graph view
   const handleNodeClick = (nodeId: string) => {
-    setGraphState((prev) => ({ ...prev, activeNodeId: nodeId }));
+    const node = graphState.nodes.get(nodeId);
+    
+    // If node is not activated yet, mark it as activated
+    if (node && !node.isActivated) {
+      const updatedNodes = new Map(graphState.nodes);
+      updatedNodes.set(nodeId, { ...node, isActivated: true });
+      setGraphState((prev) => ({ ...prev, nodes: updatedNodes, activeNodeId: nodeId }));
+    } else {
+      setGraphState((prev) => ({ ...prev, activeNodeId: nodeId }));
+    }
+    
     toggleViewMode();
   };
 

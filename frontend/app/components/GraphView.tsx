@@ -23,6 +23,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 400, y: 400 });
   const [zoom, setZoom] = useState(1);
+  const [activatingNodeId, setActivatingNodeId] = useState<string | null>(null);
 
   // Center the view on mount or when active node changes
   useEffect(() => {
@@ -56,6 +57,25 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes.size]);
+
+  // Handle node activation click
+  const handleNodeActivationClick = (nodeId: string) => {
+    const node = nodes.get(nodeId);
+    if (!node) return;
+    
+    // If node is not activated, trigger activation animation first
+    if (!node.isActivated) {
+      setActivatingNodeId(nodeId);
+      // After animation completes (400ms), call the actual click handler
+      setTimeout(() => {
+        setActivatingNodeId(null);
+        onNodeClick(nodeId);
+      }, 400);
+    } else {
+      // Node is already activated, proceed normally
+      onNodeClick(nodeId);
+    }
+  };
 
   // Handle mouse wheel for zooming
   const handleWheel = (e: React.WheelEvent) => {
@@ -288,6 +308,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
               node.id === branchAnimation.newNodeId;
 
             const shouldExpand = isNewAnimatingNode && branchAnimation.stage === 'expanding_node';
+            const isActivating = activatingNodeId === node.id;
 
             return (
               <motion.div
@@ -299,7 +320,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                 }}
                 animate={{ 
                   opacity: 1, 
-                  scale: shouldExpand ? [0, 1.15, 1] : 1,
+                  scale: isActivating ? [1, 1.2, 1] : shouldExpand ? [0, 1.15, 1] : 1,
                   filter: shouldExpand ? [
                     'drop-shadow(0 0 0px rgba(59, 130, 246, 0))',
                     'drop-shadow(0 0 20px rgba(59, 130, 246, 0.8))',
@@ -308,14 +329,14 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                 }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ 
-                  duration: shouldExpand ? 0.4 : 0.3,
-                  ease: shouldExpand ? 'easeOut' : 'easeInOut',
+                  duration: isActivating ? 0.4 : shouldExpand ? 0.4 : 0.3,
+                  ease: isActivating ? 'easeInOut' : shouldExpand ? 'easeOut' : 'easeInOut',
                 }}
               >
                 <ChatNode
                   node={node}
                   isActive={node.id === activeNodeId}
-                  onClick={() => onNodeClick(node.id)}
+                  onClick={() => handleNodeActivationClick(node.id)}
                   scale={1}
                 />
               </motion.div>
