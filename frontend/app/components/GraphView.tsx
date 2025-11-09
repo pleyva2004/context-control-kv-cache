@@ -110,11 +110,19 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
   const viewBox = calculateViewBox();
 
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-full overflow-auto bg-[#1c1c1c] custom-scrollbar"
-      onWheel={handleWheel}
+    <motion.div
+      key="graph-view"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className="w-full h-screen"
     >
+      <div
+        ref={containerRef}
+        className="relative w-full h-full overflow-auto bg-[#1c1c1c] custom-scrollbar"
+        onWheel={handleWheel}
+      >
       {/* SVG for connections */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -414,6 +422,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
         <span className="text-xs text-gray-400">Zoom: {Math.round(zoom * 100)}%</span>
       </div>
     </div>
+    </motion.div>
   );
 }
 
