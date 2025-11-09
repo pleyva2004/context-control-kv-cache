@@ -24,39 +24,32 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
   const [pan, setPan] = useState({ x: 400, y: 400 });
   const [zoom, setZoom] = useState(1);
   const [activatingNodeId, setActivatingNodeId] = useState<string | null>(null);
+  
+  // Save the initial pan and zoom for reset button
+  const initialPanRef = useRef<{ x: number; y: number } | null>(null);
+  const initialZoomRef = useRef<number>(1);
+  const hasInitializedRef = useRef(false);
 
-  // Center the view on mount or when active node changes
+  // Simple centering logic - only runs once on initial load
   useEffect(() => {
-    if (activeNodeId && nodes.has(activeNodeId) && containerRef.current) {
-      const node = nodes.get(activeNodeId)!;
-      const container = containerRef.current;
-      
-      // Center the active node with some padding for root nodes
-      const offsetX = node.position.x === 0 ? 100 : 0;
-      setPan({
-        x: container.clientWidth / 2 - node.position.x * zoom + offsetX,
-        y: container.clientHeight / 2 - node.position.y * zoom,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNodeId, zoom, nodes.size]);
-
-  // Initial center on first render with nodes
-  useEffect(() => {
-    if (nodes.size > 0 && containerRef.current) {
-      const container = containerRef.current;
-      const firstNode = Array.from(nodes.values())[0];
-      
-      // Only auto-center if we haven't manually panned yet (pan is at initial value)
-      if (pan.x === 400 && pan.y === 400) {
-        setPan({
+    if (!hasInitializedRef.current && nodes.size > 0 && containerRef.current) {
+      // Wait for container to be fully sized
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        
+        const container = containerRef.current;
+        const newPan = {
           x: container.clientWidth / 3,
           y: container.clientHeight / 2,
-        });
-      }
+        };
+        
+        setPan(newPan);
+        initialPanRef.current = newPan;
+        initialZoomRef.current = zoom;
+        hasInitializedRef.current = true;
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes.size]);
+  }, [nodes.size, zoom]);
 
   // Handle node activation click
   const handleNodeActivationClick = (nodeId: string) => {
@@ -418,8 +411,11 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
         </button>
         <button
           onClick={() => {
-            setZoom(1);
-            setPan({ x: 400, y: 400 });
+            // Reset to initial view
+            if (initialPanRef.current) {
+              setPan(initialPanRef.current);
+              setZoom(initialZoomRef.current);
+            }
           }}
           className="bg-[#2f2f2f] hover:bg-[#3f3f3f] border border-[#4f4f4f] text-white p-2 rounded-lg transition-colors"
           title="Reset View"
