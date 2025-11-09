@@ -338,7 +338,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                 }}
                 animate={{ 
                   opacity: 1, 
-                  scale: isActivating ? [1, 1.2, 1] : shouldExpand ? [0, 1.15, 1] : 1,
+                  scale: shouldExpand ? [0, 1.15, 1] : 1,
                   filter: shouldExpand ? [
                     'drop-shadow(0 0 0px rgba(59, 130, 246, 0))',
                     'drop-shadow(0 0 20px rgba(59, 130, 246, 0.8))',
@@ -347,8 +347,8 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                 }}
                 exit={{ opacity: 0, scale: 0.5 }}
                 transition={{ 
-                  duration: isActivating ? 0.4 : shouldExpand ? 0.4 : 0.3,
-                  ease: isActivating ? 'easeInOut' : shouldExpand ? 'easeOut' : 'easeInOut',
+                  duration: shouldExpand ? 0.4 : 0.3,
+                  ease: shouldExpand ? 'easeOut' : 'easeInOut',
                 }}
               >
                 <ChatNode
