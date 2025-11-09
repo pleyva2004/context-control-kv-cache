@@ -125,11 +125,35 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
   return (
     <motion.div
       key="graph-view"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      style={{ transformOrigin: 'center' }}
+      initial={{ 
+        opacity: 0, 
+        rotateX: 25,
+        y: 100,
+        filter: 'blur(10px)'
+      }}
+      animate={{ 
+        opacity: 1, 
+        rotateX: 0,
+        y: 0,
+        filter: 'blur(0px)'
+      }}
+      exit={{ 
+        opacity: 0, 
+        rotateX: -15,
+        y: -50,
+        filter: 'blur(8px)'
+      }}
+      transition={{ 
+        duration: 0.6, 
+        ease: [0.16, 1, 0.3, 1],
+        opacity: { duration: 0.5 },
+        filter: { duration: 0.4 }
+      }}
+      style={{ 
+        transformOrigin: 'center top',
+        perspective: '1200px',
+        transformStyle: 'preserve-3d'
+      }}
       className="w-full h-screen"
     >
       <div
