@@ -315,8 +315,8 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                 key={node.id}
                 className="graph-node"
                 initial={{ 
-                  opacity: isNewAnimatingNode ? 0 : 0, 
-                  scale: isNewAnimatingNode ? 0 : 0.5 
+                  opacity: isNewAnimatingNode ? 0 : 1, 
+                  scale: isNewAnimatingNode ? 0 : 1 
                 }}
                 animate={{ 
                   opacity: 1, 
@@ -419,7 +419,7 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
         <button
           onClick={() => {
             setZoom(1);
-            setPan({ x: 0, y: 0 });
+            setPan({ x: 400, y: 400 });
           }}
           className="bg-[#2f2f2f] hover:bg-[#3f3f3f] border border-[#4f4f4f] text-white p-2 rounded-lg transition-colors"
           title="Reset View"

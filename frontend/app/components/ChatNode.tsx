@@ -28,15 +28,18 @@ export default function ChatNode({ node, isActive, onClick, scale = 1 }: ChatNod
         top: node.position.y,
         width: nodeWidth,
         height: nodeHeight,
-        transform: `translate(-50%, -50%) scale(${scale})`,
         pointerEvents: 'auto',
+        x: '-50%',
+        y: '-50%',
       }}
+      initial={{ scale: scale }}
+      animate={{ scale: scale }}
+      whileHover={{ scale: scale * 1.05 }}
+      transition={{ duration: 0.2 }}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
-      whileHover={{ scale: scale * 1.05 }}
-      transition={{ duration: 0.2 }}
     >
       {/* Connection dots */}
       {node.parentId && (
