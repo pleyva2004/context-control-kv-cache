@@ -34,8 +34,8 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
       // Center the active node with some padding for root nodes
       const offsetX = node.position.x === 0 ? 100 : 0;
       setPan({
-        x: container.clientWidth / 2 - node.position.x * zoom + offsetX,
-        y: container.clientHeight / 2 - node.position.y * zoom,
+        x: container.clientWidth / 3,
+        y: container.clientHeight / 2,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,22 +68,24 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
   const generatePath = (from: NodePosition, to: NodePosition): string => {
     // Node dimensions from ChatNode.tsx
     const nodeWidth = 220;
+    const nodeHeight = 80;
     const connectionGap = 15; // Gap between line and node edge
-    const horizontalExtension = 80; // How far the line extends horizontally from parent
+    const horizontalExtension = 60; // How far the line extends horizontally from parent
 
     // Calculate start and end points with proper spacing
-    const startX = from.x + (nodeWidth / 2) + connectionGap; // Right edge of parent + gap
-    const endX = to.x - (nodeWidth / 2) - connectionGap;     // Left edge of child - gap
-    const startY = from.y;
-    const endY = to.y;
+    const startX = from.x + nodeWidth + connectionGap;  // Right edge of parent + gap
+    const endX = to.x - connectionGap;                   // Left edge of child - gap
+    const startY = from.y + (nodeHeight / 2);           // Vertical center of parent
+    const endY = to.y + (nodeHeight / 2);               // Vertical center of child
 
     // Create a balanced stepped path: horizontal from parent, vertical drop, horizontal to child
     const firstCornerX = startX + horizontalExtension;
-    const secondCornerX = endX - horizontalExtension;
 
     return `M ${startX} ${startY} L ${firstCornerX} ${startY} L ${firstCornerX} ${endY} L ${endX} ${endY}`;
   };
 
+
+  // TO BE REMOVED
   // Calculate view box dimensions
   const calculateViewBox = (): { minX: number; minY: number; width: number; height: number } => {
     let minX = Infinity;
@@ -171,6 +173,9 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                   const pathLength = shouldAnimate && branchAnimation.stage === 'drawing_branch' ? 0 : 1;
                   const animatePathLength = shouldAnimate ? 1 : pathLength;
 
+                  const nodeHeight = 80;
+                  const connectionGap = 0;
+
                   return (
                     <g key={`${node.id}-${childId}`}>
                       <motion.path
@@ -192,8 +197,8 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                       />
                       {/* Add a circle at connection point */}
                       <circle
-                        cx={childNode.position.x - 110 - 15}
-                        cy={childNode.position.y}
+                        cx={childNode.position.x - connectionGap}
+                        cy={childNode.position.y + (nodeHeight / 2)}
                         r="4"
                         fill={isActiveConnection || isAnimatingBranch ? '#3b82f6' : '#5f5f5f'}
                       />
@@ -217,13 +222,14 @@ export default function GraphView({ nodes, activeNodeId, onNodeClick, branchAnim
                           {[0, 0.25, 0.5, 0.75, 1.0].map((delay, idx) => {
                             // Use same spacing calculations as generatePath
                             const nodeWidth = 220;
+                            const nodeHeight = 80;
                             const connectionGap = 15;
-                            const horizontalExtension = 80;
+                            const horizontalExtension = 60;
 
-                            const startX = node.position.x + (nodeWidth / 2) + connectionGap;
-                            const endX = childNode.position.x - (nodeWidth / 2) - connectionGap;
-                            const startY = node.position.y;
-                            const endY = childNode.position.y;
+                            const startX = node.position.x + nodeWidth + connectionGap;
+                            const endX = childNode.position.x - connectionGap;
+                            const startY = node.position.y + (nodeHeight / 2);
+                            const endY = childNode.position.y + (nodeHeight / 2);
                             const firstCornerX = startX + horizontalExtension;
 
                             return (
