@@ -16,10 +16,10 @@ export function useGraphState() {
     if (graphState.nodes.size === 0) {
       const rootNode = createNode('root', null, 'Start conversation');
       const newNodes = new Map([[rootNode.id, rootNode]]);
-      
+
       setGraphState({
         nodes: newNodes,
-        activeNodeId: rootNode.id,
+        activeNodeId: null,
         rootNodeId: rootNode.id,
       });
     }
@@ -32,10 +32,10 @@ export function useGraphState() {
       // Always recalculate layout when graph structure changes
       const positions = calculateTreeLayout(graphState.nodes, graphState.rootNodeId);
       centerTree(positions);
-      
+
       const updatedNodes = new Map(graphState.nodes);
       let hasChanges = false;
-      
+
       positions.forEach((position, nodeId) => {
         const node = updatedNodes.get(nodeId);
         if (node && (node.position.x !== position.x || node.position.y !== position.y)) {
@@ -43,7 +43,7 @@ export function useGraphState() {
           hasChanges = true;
         }
       });
-      
+
       if (hasChanges) {
         setGraphState((prev) => ({
           ...prev,
