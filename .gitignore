@@ -1,3 +1,12 @@
-models/
+# LLM Models
+llm
 
+# Virtual Environment
 .venv/
+
+# Poetry
+pyproject.toml
+poetry.lock
+
+# Backend
+backend/build/

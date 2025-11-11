@@ -25,7 +25,7 @@ context-control-kv-cache/
 │   │   └── utils/
 │   │       └── api.ts
 │   └── package.json
-├── models/           # LLM models directory
+├── llm/              # LLM models directory
 ├── start.sh          # Convenience script to start both services
 └── requirements.txt  # Python dependencies
 ```
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 
 ### 3. Download Model
 
-Place your GGUF model in the `models/` directory, or use the included download script:
+Place your GGUF model in the `llm/` directory, or use the included download script:
 
 ```bash
 python downloadModel.py
@@ -153,7 +153,7 @@ Edit `backend/app.py` to configure the model:
 
 ```python
 LLM = Llama(
-    model_path="../models/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    model_path="../llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
     n_ctx=4096,        # Context window size
     n_gpu_layers=32,   # Number of layers to offload to GPU
     verbose=False
@@ -230,7 +230,7 @@ The application intelligently manages KV cache slots to optimize inference:
 **Model not found:**
 ```bash
 # Ensure model is in the correct path
-ls models/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+ls llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf
 ```
 
 **GPU not detected:**
