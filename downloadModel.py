@@ -3,7 +3,7 @@ from huggingface_hub import hf_hub_download
 path = hf_hub_download(
     repo_id="bartowski/Llama-3.2-3B-Instruct-GGUF",
     filename="Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    local_dir="models_options"
+    local_dir="llm"
 )
 print("✅ Model downloaded to:", path)
 

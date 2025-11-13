@@ -67,7 +67,7 @@ enum server_task_type {
     SERVER_TASK_TYPE_SLOT_SAVE,
     SERVER_TASK_TYPE_SLOT_RESTORE,
     SERVER_TASK_TYPE_SLOT_ERASE,
-    SERVER_TASK_TYPE_BRANCH, 
+    SERVER_TASK_TYPE_BRANCH,
     SERVER_TASK_TYPE_SET_LORA,
 };
 
@@ -264,7 +264,7 @@ struct slot_params {
 
 /**
  * Branch metadata: describes a conversation branch point
- * 
+ *
  * parent_slot_id: The slot containing the parent conversation
  * token_range_start: First token index to include in branch (inclusive)
  * token_range_end: Last token index to include in branch (exclusive)
@@ -283,18 +283,18 @@ struct branch_params {
 
         BRANCH_MODE_REUSE_KV,       // Reuse KV cache from parent slot
         BRANCH_MODE_FRESH_CONTEXT,  // Fresh context w/ minimal KV cache recalculation
-    
+
     };
 
     // Default mode is to reuse KV cache from parent slot
     branch_mode_type mode = BRANCH_MODE_REUSE_KV;
 
-    
+
     // For text-based branching (user provides text span)
     std::string text_excerpt;
     bool use_text_matching = false;  // If true, find tokens by text
 
-    // For isolation: how much context to keep 
+    // For isolation: how much context to keep
     // 0 = use full range
     // >0 = last N tokens only
     int32_t context_window = 0;
@@ -304,7 +304,7 @@ struct branch_params {
             {"parent_slot_id", parent_slot_id},
             {"token_range_start", token_range_start},
             {"token_range_end", token_range_end},
-            {"mode", mode == BRANCH_MODE_REUSE_KV ? "reuse_kv" : 
+            {"mode", mode == BRANCH_MODE_REUSE_KV ? "reuse_kv" :
                      mode == BRANCH_MODE_FRESH_CONTEXT ? "fresh": "hybrid"},
             {"text_excerpt", text_excerpt},
             {"use_text_matching", use_text_matching},
@@ -1720,7 +1720,7 @@ struct server_slot {
 
         //Parents slot ID
         int32_t parent_slot_id = -1;
-        
+
         // Token position where branch occured
         int32_t branch_point = -1;
 
@@ -1747,12 +1747,12 @@ struct server_slot {
 
         // Token representation of all the text in the slot
         std::vector<llama_token> tokens;
-        
+
         // Decoded text for each token
-        std::vector<std::string> texts;  
-        
+        std::vector<std::string> texts;
+
         // Character position in full text
-        std::vector<int32_t> positions;  
+        std::vector<int32_t> positions;
 
         // Find token range for a text excerpt
         std::pair<int32_t, int32_t> find_token_range(const std::string & text) const {
@@ -1761,37 +1761,37 @@ struct server_slot {
             for (const auto & token_text : texts) {  // Fix: renamed to avoid shadowing
                 full_text += token_text;
             }
-        
+
             size_t pos = full_text.find(text);
             if (pos == std::string::npos) {
                 return {-1, -1}; // Not found
             }
-        
+
             int32_t start_tok = -1, end_tok = -1;
-            
+
             // Find the token that contains the start of the excerpt
             for (int32_t i = 0; i < (int32_t)tokens.size(); i++) {
-                size_t token_end_pos = (i + 1 < (int32_t)positions.size()) 
-                    ? positions[i + 1] 
+                size_t token_end_pos = (i + 1 < (int32_t)positions.size())
+                    ? positions[i + 1]
                     : full_text.size();
-                
+
                 // Token i spans from positions[i] to token_end_pos
                 if (start_tok == -1 && positions[i] <= pos && pos < token_end_pos) {
                     start_tok = i;
                 }
-                
+
                 // Find token that contains or follows the end of the excerpt
                 if (positions[i] >= (int32_t)(pos + text.length())) {
                     end_tok = i;
                     break;
                 }
             }
-            
+
             // If we found the start but not the end, the excerpt extends to the last token
             if (start_tok != -1 && end_tok == -1) {
                 end_tok = (int32_t)tokens.size();
             }
-            
+
             return {start_tok, end_tok};
         }
     };
@@ -2912,9 +2912,9 @@ struct server_context {
 
     bool launch_branch(server_slot & slot, const server_task & task) {
         const auto & branch_params = task.branch;
-        
+
         SLT_DBG(slot, "launching branch from slot %d, range [%d, %d], mode=%d\n", branch_params.parent_slot_id, branch_params.token_range_start, branch_params.token_range_end, branch_params.mode);
-        
+
         // Validate parent slot
         if (branch_params.parent_slot_id < 0 || branch_params.parent_slot_id >= (int)slots.size()) {
             SLT_ERR(slot, "invalid parent slot ID: %d\n", branch_params.parent_slot_id);
@@ -2923,7 +2923,7 @@ struct server_context {
         }
 
         server_slot & parent_slot = slots[branch_params.parent_slot_id];
-        
+
         // Check if parent slot has completed its generation
         // IMPORTANT: We only allow branching from IDLE slots to avoid race conditions
         // when accessing the KV cache. Branching from GENERATING slots could cause
@@ -2933,7 +2933,7 @@ struct server_context {
             send_error(task, "Parent slot must be idle before branching. Please wait for the generation to complete.", ERROR_TYPE_INVALID_REQUEST);
             return false;
         }
-        
+
         // Ensure parent slot has some tokens to branch from
         if (parent_slot.n_prompt_tokens_processed == 0 && parent_slot.n_decoded == 0) {
             SLT_ERR(slot, "parent slot %d has no tokens to branch from\n", branch_params.parent_slot_id);
@@ -2965,12 +2965,12 @@ struct server_context {
                 // Copy KV cache from parent to branch
                 auto memory = llama_get_memory(ctx);
                 llama_memory_seq_cp(
-                    memory, 
-                    parent_seq_id, 
-                    branch_seq_id, 
-                    start, 
+                    memory,
+                    parent_seq_id,
+                    branch_seq_id,
+                    start,
                     end);
-                
+
                 SLT_INF(slot, "copied KV cache: seq %d → seq %d, range [%d, %d)\n",
                     parent_seq_id, branch_seq_id,
                     start,
@@ -2988,13 +2988,13 @@ struct server_context {
                     slot.prompt.tokens.clear();
 
                     // Copying token IDs from parent to branch
-                    
+
                     llama_tokens parent_tokens_subset(
                         parent_slot.token_map.tokens.begin() + start_idx,
                         parent_slot.token_map.tokens.begin() + end_idx
                     );
                     slot.prompt.tokens.insert(parent_tokens_subset);
-                    
+
                     SLT_DBG(slot, "copied %d tokens from parent to branch\n", end_idx - start_idx);
                 }
 
@@ -3011,10 +3011,10 @@ struct server_context {
                 */
                 SLT_INF(slot, "branching in FRESH_CONTEXT mode%s\n", "");
 
-                // Clear any existing KV cache for this sequence 
+                // Clear any existing KV cache for this sequence
                 auto memory = llama_get_memory(ctx);
                 llama_memory_seq_rm(memory, branch_seq_id, 0, -1);
-                
+
                 // CRITICAL: Clear the slot's prompt cache state to avoid assertion errors
                 // When we cleared the KV cache above, we must also clear ALL the slot's tracking
                 // of cached/processed tokens, otherwise n_past will be inconsistent with pos_min
@@ -3033,11 +3033,11 @@ struct server_context {
                         (int)parent_slot.token_map.texts.size(),
                         branch_params.token_range_end
                     );
-                    
+
                     for (int i = start_idx; i < end_idx; ++i) {
                         context_text += parent_slot.token_map.texts[i];
                     }
-                } 
+                }
 
                 SLT_DBG(slot, "extracted context text: %zu bytes\n", context_text.size());
 
@@ -3052,27 +3052,27 @@ struct server_context {
                             context_tokens.begin(),
                             context_tokens.begin() + skip
                         );
-                        
+
                         // Reconstruct text from limited tokens
                         context_text.clear();
                         for (auto tok : context_tokens) {
                             context_text += common_token_to_piece(ctx, tok);
                         }
                     }
-                    
+
                     SLT_INF(slot, "limited context to window of %d tokens\n",
                             branch_params.context_window);
                 }
 
 
                 // Prepend context to new prompt
-                std::string full_prompt = context_text + "\n\n" + 
+                std::string full_prompt = context_text + "\n\n" +
                     task.tokens.detokenize(ctx, true);
 
                 // Tokenize combined prompt
                 auto tokenized = tokenize_mixed(vocab, {full_prompt}, true, true);
                 slot.prompt.tokens = server_tokens(tokenized, false);
-                slot.n_prompt_tokens_cache = 0;  
+                slot.n_prompt_tokens_cache = 0;
                 slot.n_prompt_tokens_processed = 0;
 
                 SLT_INF(slot, "fresh context: %d tokens to process\n", (int)slot.prompt.tokens.size());
@@ -3092,7 +3092,7 @@ struct server_context {
         SLT_INF(slot, "branch created: %s\n", slot.branch.branch_id.c_str());
 
 
-        // Set up stabdard slot parameters 
+        // Set up stabdard slot parameters
         slot.state = SLOT_STATE_STARTED;
         slot.t_last_used = ggml_time_us();
 
@@ -3115,12 +3115,12 @@ struct server_context {
 
         std::cout << "launch_slot_with_task: " << task.type << std::endl;
         const bool is_branch = task.type == SERVER_TASK_TYPE_BRANCH;
-        
+
         slot.task = std::make_unique<const server_task>(std::move(task));
 
         // Common initialization for ALL task types (branch and completion)
         // This must happen BEFORE launch_branch because generation needs these
-        
+
         // Token validation
         if (!slot.task->tokens.validate(ctx)) {
             send_error(*slot.task, "Prompt contains invalid tokens", ERROR_TYPE_INVALID_REQUEST);
@@ -3150,7 +3150,7 @@ struct server_context {
         if (is_branch) {
             return launch_branch(slot, *slot.task);
         }
-    
+
 
         if (!are_lora_equal(slot.task->params.lora, slot.lora)) {
             // if lora has changed, check to see if the cache should be cleared
@@ -3228,7 +3228,7 @@ struct server_context {
         clean_kv_cache = false;
     }
 
-    // Modified 
+    // Modified
     bool process_token(completion_token_output & result, server_slot & slot) {
         // remember which tokens were sampled - used for repetition penalties during sampling
         const std::string token_str = result.text_to_send;
@@ -5626,9 +5626,9 @@ int main(int argc, char ** argv) {
 
     /**
     * POST /v1/chat/branch
-    * 
+    *
     * Creates a new conversation branch from an existing slot
-    * 
+    *
     * Request body:
     * {
     *   "parent_slot_id": 0,              // Which conversation to branch from
@@ -5641,11 +5641,11 @@ int main(int argc, char ** argv) {
     * }
     */
 
-    
+
     // new
     const auto handle_chat_branch = [&ctx_server, &res_error, &res_ok](const httplib::Request & req, httplib::Response & res) {
         LOG_DBG("branch request: %s\n", req.body.c_str());
-        
+
         json data;
         try {
             data = json::parse(req.body);
@@ -5670,9 +5670,9 @@ int main(int argc, char ** argv) {
         //     res_error(res, format_error_response("Parent slot is idle (no conversation to branch from)", ERROR_TYPE_INVALID_REQUEST));
         //     return;
         // }
-        
 
-        
+
+
         // Parse branch mode
         std::string mode_str = json_value(data, "branch_mode", std::string("reuse_kv"));
         if (mode_str == "reuse_kv" ) {
@@ -5681,9 +5681,9 @@ int main(int argc, char ** argv) {
             branch.mode = branch_params::BRANCH_MODE_FRESH_CONTEXT;
         } else {
             res_error(res, format_error_response("Invalid mode. Must be: reuse_kv or fresh", ERROR_TYPE_INVALID_REQUEST));
-            return;   
+            return;
         }
-        
+
 
         // Token range (if provided)
         if (data.contains("token_range") && data["token_range"].is_array()) {
@@ -5697,12 +5697,12 @@ int main(int argc, char ** argv) {
             }
         }
 
-        
+
         // Text excerpt (if provided - takes precedence over token range)
         if (data.contains("text_excerpt") && data["text_excerpt"].is_string()) {
             branch.text_excerpt = data["text_excerpt"];
             branch.use_text_matching = true;
-        
+
 
             std::cout << "=== DEBUG find_token_range ===" << std::endl;
             std::cout << "text_excerpt: '" << branch.text_excerpt << "'" << std::endl;
@@ -5721,7 +5721,7 @@ int main(int argc, char ** argv) {
             branch.token_range_start = start;
             branch.token_range_end = end;
         }
-         
+
         // Context window (if provided)
         if (data.contains("context_window") && data["context_window"].is_number_integer()) {
             branch.context_window = json_value(data, "context_window", 0);
@@ -5739,7 +5739,7 @@ int main(int argc, char ** argv) {
         // Create task with standard completion params
         json completion_data = data;
         completion_data.erase("parent_slot_id");
-        completion_data.erase("branch_mode"); 
+        completion_data.erase("branch_mode");
         completion_data.erase("token_range");
         completion_data.erase("text_excerpt");
         completion_data.erase("context_window");
@@ -5761,23 +5761,23 @@ int main(int argc, char ** argv) {
             // Default prompt for branches without explicit user message
             user_prompt = "Continue from the selected point.";
         }
-        
-        // If text_excerpt is available, prepend it as context to the user's prompt
-        if (!branch.text_excerpt.empty()) {
-            user_prompt = "Context from previous conversation:\n" + branch.text_excerpt + "\n\n" + user_prompt;
-        }
-        
+
+        // // If text_excerpt is available, prepend it as context to the user's prompt
+        // if (!branch.text_excerpt.empty()) {
+        //     user_prompt = "Context from previous conversation:\n" + branch.text_excerpt + "\n\n" + user_prompt;
+        // }
+
         // Format as OpenAI-compatible messages
         json messages = json::array();
         messages.push_back({
             {"role", "user"},
             {"content", user_prompt}
         });
-        
+
         // Create chat body for template parsing
         json chat_body = data;
         chat_body["messages"] = messages;
-        
+
         // Apply chat template
         std::vector<raw_buffer> files;
         json formatted_data;
@@ -5787,7 +5787,7 @@ int main(int argc, char ** argv) {
             res_error(res, format_error_response(std::string("Chat template parsing failed: ") + e.what(), ERROR_TYPE_INVALID_REQUEST));
             return;
         }
-        
+
         // Get formatted prompt and tokenize
         std::string formatted_prompt = formatted_data["prompt"].get<std::string>();
         llama_tokens tokenized = tokenize_mixed(ctx_server.vocab, {formatted_prompt}, true, true);
@@ -5801,7 +5801,7 @@ int main(int argc, char ** argv) {
         task.params = params;
         task.tokens = std::move(tokens);
         task.branch = branch;
-        
+
         // Set OAI-compat chat format for proper streaming response format
         auto completion_id = gen_chatcmplid();
         task.params.oaicompat = OAICOMPAT_TYPE_CHAT;
@@ -5810,28 +5810,28 @@ int main(int argc, char ** argv) {
         // Handle results like completions do
         std::unordered_set<int> task_ids = {task.id};
         bool stream = json_value(data, "stream", false);
-        
+
         ctx_server.queue_results.add_waiting_task_id(task.id);
         ctx_server.queue_tasks.post(std::move(task), false);
 
         if (!stream) {
             // Non-streaming: wait for final result and return it
-            ctx_server.receive_multi_results(task_ids, 
+            ctx_server.receive_multi_results(task_ids,
                 [&](std::vector<server_task_result_ptr> & results) {
                     res_ok(res, results[0]->to_json());
-                }, 
+                },
                 [&](const json & error_data) {
                     res_error(res, error_data);
-                }, 
+                },
                 req.is_connection_closed);
-            
+
             ctx_server.queue_results.remove_waiting_task_ids(task_ids);
         } else {
             // Streaming: set up chunked content provider
             const auto chunked_content_provider = [task_ids, &ctx_server](
                 size_t, httplib::DataSink & sink) {
-                
-                ctx_server.receive_cmpl_results_stream(task_ids, 
+
+                ctx_server.receive_cmpl_results_stream(task_ids,
                     [&](server_task_result_ptr & result) -> bool {
                         json res_json = result->to_json();
                         if (res_json.is_array()) {
@@ -5844,7 +5844,7 @@ int main(int argc, char ** argv) {
                         } else {
                             return server_sent_event(sink, res_json);
                         }
-                    }, 
+                    },
                     [&](const json & error_data) {
                         // Send error in OpenAI-compatible streaming format
                         json error_chunk = {
@@ -5852,11 +5852,11 @@ int main(int argc, char ** argv) {
                             {"error", error_data}
                         };
                         server_sent_event(sink, error_chunk);
-                    }, 
+                    },
                     [&sink]() {
                         return !sink.is_writable();
                     });
-                
+
                 static const std::string ev_done = "data: [DONE]\n\n";
                 sink.write(ev_done.data(), ev_done.size());
                 sink.done();
@@ -5867,7 +5867,7 @@ int main(int argc, char ** argv) {
                 ctx_server.queue_results.remove_waiting_task_ids(task_ids);
             };
 
-            res.set_chunked_content_provider("text/event-stream", 
+            res.set_chunked_content_provider("text/event-stream",
                 chunked_content_provider, on_complete);
         }
     };
@@ -5876,7 +5876,7 @@ int main(int argc, char ** argv) {
     // new
     const auto handle_branch_tree = [&ctx_server, &res_ok](const httplib::Request &, httplib::Response & res) {
         json branches = json::array();
-        
+
         // Build branch tree from all active slots
         for (const auto & slot : ctx_server.slots) {
             if (slot.state != SLOT_STATE_IDLE && slot.branch.is_branch) {
@@ -5890,7 +5890,7 @@ int main(int argc, char ** argv) {
                 });
             }
         }
-        
+
         res_ok(res, {{"branches", branches}});
     };
 
