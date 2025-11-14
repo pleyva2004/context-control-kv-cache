@@ -10,7 +10,6 @@ R&D Project for KV caching with llama.cpp - A modern chat interface with advance
 - **Graph-Based Conversations**: Node-based architecture with interactive tree visualization
 - **Smart Context Management**: Two branching modes for optimal context control
   - **Reuse KV**: Copy parent's KV cache for efficient context inheritance
-  - **Fresh Context**: Start branches without cache dependencies
 - **Visual Graph Interface**: Interactive pan/zoom graph view with animated branching
 - **Slot Management**: Per-node KV cache slot tracking and management
 - **Modern UI**: Dark-themed Next.js frontend with Tailwind CSS and smooth animations
@@ -62,72 +61,402 @@ context-control-kv-cache/
 
 ## Quick Start
 
-### 1. Clone the Repository
+This guide will walk you through setting up the application from scratch. Expected setup time: **15-30 minutes** (depending on your machine and internet speed).
+
+### 1. Install Prerequisites
+
+Before starting, ensure you have the required tools installed:
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install required tools
+brew install cmake node python3
+
+# Verify installations
+cmake --version    # Should be 3.14 or higher
+node --version     # Should be 18 or higher
+python3 --version  # Should be 3.7 or higher
+```
+
+Xcode Command Line Tools (for C++ compiler):
+```bash
+xcode-select --install
+```
+
+</details>
+
+<details>
+<summary><b>Linux (Ubuntu/Debian)</b></summary>
+
+```bash
+# Update package list
+sudo apt update
+
+# Install required tools
+sudo apt install -y build-essential cmake curl
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs python3 python3-pip
+
+# Verify installations
+cmake --version    # Should be 3.14 or higher
+node --version     # Should be 18 or higher
+python3 --version  # Should be 3.7 or higher
+gcc --version      # Should show GCC compiler info
+```
+
+**Optional - CUDA for NVIDIA GPU acceleration:**
+```bash
+# Install CUDA toolkit (if you have an NVIDIA GPU)
+# Visit: https://developer.nvidia.com/cuda-downloads
+```
+
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+1. **Install Visual Studio 2022 Community Edition**
+   - Download from: https://visualstudio.microsoft.com/
+   - Select "Desktop development with C++"
+
+2. **Install CMake**
+   - Download from: https://cmake.org/download/
+   - Add to PATH during installation
+
+3. **Install Node.js**
+   - Download LTS version from: https://nodejs.org/
+   - Version 18 or higher
+
+4. **Install Python**
+   - Download from: https://www.python.org/downloads/
+   - Check "Add Python to PATH" during installation
+
+5. **Verify installations** (in PowerShell):
+```powershell
+cmake --version
+node --version
+python --version
+```
+
+</details>
+
+### 2. Clone the Repository
 
 ```bash
 git clone https://github.com/yourusername/context-control-kv-cache.git
 cd context-control-kv-cache
 ```
 
-### 2. Download Model
-
-Place your GGUF model in the `llm/` directory, or use the included download script:
+**✓ Verify:** You should now be in the project root directory.
 
 ```bash
-python downloadModel.py
+ls -la
+# Should show: backend/, frontend/, llm/, README.md, etc.
 ```
 
-The default model is `Llama-3.2-3B-Instruct-Q4_K_M.gguf`.
+### 3. Download a Language Model
 
-### 3. Build the Backend
+You need a GGUF-format language model. We recommend starting with Llama 3.2 3B (Q4 quantization) for good performance and modest hardware requirements.
 
-The backend is built from the native llama.cpp C++ source:
+**Option A: Using the download script (Recommended)**
+
+```bash
+# Create the llm directory if it doesn't exist
+mkdir -p llm
+
+# Run the download script
+python3 downloadModel.py
+```
+
+The script will download `Llama-3.2-3B-Instruct-Q4_K_M.gguf` (~2.0 GB) to the `llm/` directory.
+
+**✓ Verify download:**
+```bash
+ls -lh llm/
+# Should show: Llama-3.2-3B-Instruct-Q4_K_M.gguf (~2.0 GB)
+```
+
+**Option B: Manual download**
+
+Visit [Hugging Face](https://huggingface.co/models?search=gguf) and download any GGUF model you prefer, then:
+
+```bash
+# Place it in the llm/ directory
+mv /path/to/your/model.gguf llm/
+```
+
+**Note:** If you use a different model, update the `MODEL_PATH` in `backend/start_backend.sh`.
+
+### 4. Build the Backend
+
+The backend compiles llama.cpp from source with optimizations for your hardware.
 
 ```bash
 cd backend
 mkdir -p build
 cd build
+```
+
+**Run CMake configuration:**
+
+<details>
+<summary><b>macOS (Metal GPU acceleration)</b></summary>
+
+```bash
+cmake .. -DGGML_METAL=ON
+```
+
+This enables Metal acceleration for Apple Silicon and Intel Macs.
+
+</details>
+
+<details>
+<summary><b>Linux (CPU only)</b></summary>
+
+```bash
 cmake ..
+```
+
+</details>
+
+<details>
+<summary><b>Linux (with NVIDIA CUDA)</b></summary>
+
+```bash
+cmake .. -DGGML_CUDA=ON
+```
+
+</details>
+
+<details>
+<summary><b>Windows (Visual Studio)</b></summary>
+
+```bash
+cmake .. -G "Visual Studio 17 2022" -A x64
+```
+
+</details>
+
+**Compile the backend:**
+
+```bash
+# Linux/macOS
 make -j8
+
+# Windows (PowerShell)
+cmake --build . --config Release
+```
+
+This will take **5-15 minutes** depending on your system. You'll see compilation progress for hundreds of files.
+
+**✓ Verify build:**
+
+```bash
+# Check if llama-server binary was created
+ls bin/llama-server
+
+# Test the server
+./bin/llama-server --version
+```
+
+**Expected output:** Should display version information and build details.
+
+```bash
+# Return to project root
 cd ../..
 ```
 
-This will compile the `llama-server` binary in `backend/build/bin/`.
+**Troubleshooting:**
+- **"CMake not found"**: Install CMake (see Prerequisites)
+- **"No C++ compiler found"**: Install build tools (see Prerequisites)
+- **"Metal not found"**: Update to macOS 13+ or disable Metal with `cmake ..`
+- **Build errors**: Try cleaning the build directory: `rm -rf backend/build && mkdir backend/build`
 
-### 4. Install Frontend Dependencies
+### 5. Install Frontend Dependencies
 
 ```bash
 cd frontend
 npm install
+```
+
+This will install all Node.js dependencies (~2-5 minutes).
+
+**✓ Verify installation:**
+
+```bash
+npm list --depth=0
+# Should show: next, react, tailwindcss, typescript, etc.
+```
+
+```bash
+# Return to project root
 cd ..
 ```
 
-### 5. Start the Application
+**Troubleshooting:**
+- **"npm not found"**: Install Node.js (see Prerequisites)
+- **"Permission denied"**: Don't use `sudo`. If needed, fix npm permissions
+- **"ERESOLVE" errors**: Try `npm install --legacy-peer-deps`
 
-Use the convenience script to start both backend and frontend:
+### 6. Start the Application
+
+You have two options to start the application:
+
+**Option A: Start everything with one command (Recommended)**
 
 ```bash
 chmod +x start.sh
 ./start.sh
 ```
 
-Or start them separately:
+This script will:
+1. Start the backend server on port 8080
+2. Start the frontend development server on port 3000
+3. Run both in the background
 
-**Backend:**
+**Option B: Start backend and frontend separately (for debugging)**
+
+**Terminal 1 - Backend:**
 ```bash
 cd backend
+chmod +x start_backend.sh
 ./start_backend.sh
 ```
 
-**Frontend:**
+**Expected output:**
+```
+Loading model from ../llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+llama_model_loader: loaded meta data with 21 key-value pairs
+llama_model_loader: - kv   0: general.architecture str = llama
+...
+llm_load_tensors: total size = 1960.00 MiB
+HTTP server listening on 0.0.0.0:8080
+```
+
+**✓ Backend is ready when you see:** `HTTP server listening on 0.0.0.0:8080`
+
+**Test backend health:**
+```bash
+# In a new terminal
+curl http://localhost:8080/health
+# Should return: {"status":"ok"}
+```
+
+**Terminal 2 - Frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
 
-### 6. Open the Application
+**Expected output:**
+```
+  ▲ Next.js 15.0.0
+  - Local:        http://localhost:3000
+  - Network:      http://192.168.1.x:3000
 
-Visit [http://localhost:3000](http://localhost:3000) in your browser.
+✓ Ready in 2.3s
+```
+
+**✓ Frontend is ready when you see:** `✓ Ready in X.Xs`
+
+### 7. Open the Application
+
+**Open your browser and navigate to:**
+
+```
+http://localhost:3000
+```
+
+**✓ Success indicators:**
+- You should see a modern dark-themed chat interface
+- The model selector should show your loaded model
+- No console errors in browser DevTools (F12)
+- The page title should be "Context Control KV Cache"
+
+### 8. Test the System
+
+**First message test:**
+
+1. Type a message in the input box: `"Hello! Can you help me understand quantum physics?"`
+2. Press **Enter**
+3. You should see:
+   - Your message appears in the chat
+   - A "thinking" indicator briefly
+   - The AI response streams in word-by-word
+   - The response completes without errors
+
+**Branching test:**
+
+1. **Select text** in the AI's response (e.g., highlight "quantum physics")
+2. A purple **"Branch"** button should appear
+3. Click the **"Branch"** button
+4. The input field should highlight with a purple ring
+5. Type a follow-up: `"Tell me more about this"`
+6. Press **Enter**
+7. Watch the animation:
+   - Interface switches to graph view
+   - A connecting line animates between nodes
+   - New conversation node appears
+   - Returns to focused view with the new branch
+
+**✓ Everything is working if:**
+- Messages send and receive successfully
+- Responses stream in real-time
+- Branching creates new conversation nodes
+- Graph view shows the conversation tree
+- You can click nodes to switch between conversations
+
+### 9. Troubleshooting Quick Checklist
+
+If something isn't working:
+
+**Backend not starting:**
+```bash
+# Check if port 8080 is already in use
+lsof -i :8080           # macOS/Linux
+netstat -ano | findstr :8080  # Windows
+
+# Kill the process if needed
+kill -9 $(lsof -t -i:8080)  # macOS/Linux
+```
+
+**Frontend not connecting to backend:**
+```bash
+# Test backend health
+curl http://localhost:8080/health
+
+# Check environment variables
+cat frontend/.env.local
+# Should have: NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+**Model not loading:**
+```bash
+# Verify model file exists and is a valid GGUF file
+ls -lh llm/
+file llm/*.gguf
+
+# Check model path in backend script
+grep MODEL_PATH backend/start_backend.sh
+```
+
+**Out of memory errors:**
+```bash
+# Reduce context size in backend/start_backend.sh
+# Edit the file and add: -c 1024
+# (Default is 2048, reducing to 1024 uses less RAM)
+```
+
+**Still having issues?** See the [Troubleshooting](#troubleshooting) section below for detailed solutions.
+
+---
+
+**🎉 Congratulations!** You now have a working KV cache-enabled chat system with conversation branching.
 
 ## Using the Branching Feature
 
