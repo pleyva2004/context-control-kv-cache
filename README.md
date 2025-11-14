@@ -57,6 +57,8 @@ context-control-kv-cache/
 - **CMake 3.14+**: For building the C++ backend
 - **Node.js 18+**: For the frontend
 - **npm or yarn**: JavaScript package manager
+- **Python 3.7+**: For model download and authentication scripts
+- **Hugging Face Account**: Free account for downloading models ([sign up here](https://huggingface.co/join))
 - **Metal (macOS) or CUDA (Linux/Windows)**: For GPU acceleration (optional but recommended)
 
 ## Quick Start
@@ -159,7 +161,31 @@ ls -la
 # Should show: backend/, frontend/, llm/, README.md, etc.
 ```
 
-### 3. Download a Language Model
+### 3. Authenticate with Hugging Face
+
+Before downloading models, you need to authenticate with Hugging Face:
+
+```bash
+# Install Hugging Face hub library
+pip3 install huggingface_hub
+
+# Run the login script
+python3 login.py
+```
+
+**You'll be prompted to enter your Hugging Face token:**
+- If you don't have a token, create a free account at [huggingface.co](https://huggingface.co)
+- Go to [Settings → Access Tokens](https://huggingface.co/settings/tokens)
+- Click "New token" → Create a **Read** token
+- Copy the token (starts with `hf_`)
+- Paste it when prompted
+
+**✓ Verify login:**
+```bash
+# Should show: Login successful
+```
+
+### 4. Download a Language Model
 
 You need a GGUF-format language model. We recommend starting with Llama 3.2 3B (Q4 quantization) for good performance and modest hardware requirements.
 
@@ -192,7 +218,7 @@ mv /path/to/your/model.gguf llm/
 
 **Note:** If you use a different model, update the `MODEL_PATH` in `backend/start_backend.sh`.
 
-### 4. Build the Backend
+### 5. Build the Backend
 
 The backend compiles llama.cpp from source with optimizations for your hardware.
 
@@ -277,92 +303,57 @@ cd ../..
 - **"Metal not found"**: Update to macOS 13+ or disable Metal with `cmake ..`
 - **Build errors**: Try cleaning the build directory: `rm -rf backend/build && mkdir backend/build`
 
-### 5. Install Frontend Dependencies
-
-```bash
-cd frontend
-npm install
-```
-
-This will install all Node.js dependencies (~2-5 minutes).
-
-**✓ Verify installation:**
-
-```bash
-npm list --depth=0
-# Should show: next, react, tailwindcss, typescript, etc.
-```
-
-```bash
-# Return to project root
-cd ..
-```
-
-**Troubleshooting:**
-- **"npm not found"**: Install Node.js (see Prerequisites)
-- **"Permission denied"**: Don't use `sudo`. If needed, fix npm permissions
-- **"ERESOLVE" errors**: Try `npm install --legacy-peer-deps`
-
 ### 6. Start the Application
 
-You have two options to start the application:
-
-**Option A: Start everything with one command (Recommended)**
+From the project root directory, run:
 
 ```bash
-chmod +x start.sh
-./start.sh
+bash start.sh
 ```
 
-This script will:
-1. Start the backend server on port 8080
-2. Start the frontend development server on port 3000
-3. Run both in the background
+The script will automatically:
+- Start the backend server (port 8080)
+- Install frontend dependencies if needed
+- Start the frontend development server (port 3000)
 
-**Option B: Start backend and frontend separately (for debugging)**
+**Expected output:**
+
+```
+Loading model from ../llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+...
+HTTP server listening on 0.0.0.0:8080
+...
+▲ Next.js 15.0.0
+- Local:        http://localhost:3000
+
+Backend: http://localhost:8080
+Frontend: http://localhost:3000
+Press Ctrl+C to stop
+```
+
+**✓ Everything is ready when you see:**
+- `HTTP server listening on 0.0.0.0:8080` (backend ready)
+- `✓ Ready in X.Xs` (frontend ready)
+
+**Tip:** Press `Ctrl+C` to stop both services.
+
+<details>
+<summary><b>Alternative: Start services separately (for debugging)</b></summary>
 
 **Terminal 1 - Backend:**
 ```bash
 cd backend
-chmod +x start_backend.sh
-./start_backend.sh
-```
-
-**Expected output:**
-```
-Loading model from ../llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf
-llama_model_loader: loaded meta data with 21 key-value pairs
-llama_model_loader: - kv   0: general.architecture str = llama
-...
-llm_load_tensors: total size = 1960.00 MiB
-HTTP server listening on 0.0.0.0:8080
-```
-
-**✓ Backend is ready when you see:** `HTTP server listening on 0.0.0.0:8080`
-
-**Test backend health:**
-```bash
-# In a new terminal
-curl http://localhost:8080/health
-# Should return: {"status":"ok"}
+bash start_backend.sh
 ```
 
 **Terminal 2 - Frontend:**
 ```bash
 cd frontend
+npm install  # First time only
 npm run dev
 ```
 
-**Expected output:**
-```
-  ▲ Next.js 15.0.0
-  - Local:        http://localhost:3000
-  - Network:      http://192.168.1.x:3000
-
-✓ Ready in 2.3s
-```
-
-**✓ Frontend is ready when you see:** `✓ Ready in X.Xs`
+</details>
 
 ### 7. Open the Application
 
@@ -433,6 +424,14 @@ curl http://localhost:8080/health
 # Check environment variables
 cat frontend/.env.local
 # Should have: NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+**Frontend dependencies failing:**
+```bash
+# If start.sh fails to install dependencies, try manually:
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
 ```
 
 **Model not loading:**
